@@ -276,6 +276,50 @@ class FbCrawlAuditTest(unittest.TestCase):
                 ).fetchall()
             self.assertEqual(rows, [("page_early", "active"), ("page_late", "suspected_deleted")])
 
+    def test_check_deleted_rejects_range_longer_than_one_week(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "audit.db"
+
+            with self.assertRaisesRegex(ValueError, "không được vượt quá 7 ngày"):
+                fbcrawl.check_deleted_posts(
+                    db_path=db_path,
+                    since_date="2026-06-01",
+                    until_date="2026-06-09",
+                    post_checker=lambda post_id: True,
+                )
+
+    def test_check_deleted_stops_after_200_requests_and_warns(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "audit.db"
+            fbcrawl.sync_posts(
+                db_path=db_path,
+                since_date="2026-06-01",
+                until_date="2026-06-08",
+                fetcher=lambda since, until: [
+                    {
+                        "id": f"page_{index}",
+                        "message": f"Post {index}",
+                        "created_time": "2026-06-02T01:00:00+0000",
+                    }
+                    for index in range(201)
+                ],
+                max_posts=0,
+            )
+
+            checked = []
+            result = fbcrawl.check_deleted_posts(
+                db_path=db_path,
+                since_date="2026-06-01",
+                until_date="2026-06-08",
+                post_checker=lambda post_id: checked.append(post_id) or True,
+                sleep_seconds=0,
+            )
+
+            self.assertEqual(len(checked), 200)
+            self.assertEqual(result.checked_count, 200)
+            self.assertTrue(result.stopped_by_limit)
+            self.assertIn("200", result.warning)
+
     def test_export_report_writes_audit_csv(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "audit.db"
@@ -303,6 +347,9 @@ class FbCrawlAuditTest(unittest.TestCase):
             self.assertEqual(rows[0]["post_id"], "page_1")
             self.assertEqual(rows[0]["status"], "active")
             self.assertEqual(rows[0]["message"], "Report me")
+            self.assertNotIn("T", rows[0]["created_time"])
+            self.assertNotIn("Z", rows[0]["created_time"])
+            self.assertRegex(rows[0]["created_time"], r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}")
 
 
 if __name__ == "__main__":

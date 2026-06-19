@@ -9,7 +9,7 @@ import threading
 import time
 from contextlib import closing
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tkinter import Tk, StringVar, messagebox, ttk
 
@@ -20,7 +20,7 @@ PAGE_ID = os.getenv("FB_PAGE_ID", "1125132200689307")
 GRAPH_VERSION = os.getenv("FB_GRAPH_VERSION", "v25.0")
 DEFAULT_DB_PATH = Path("facebook_archive") / "facebook_audit.db"
 DEFAULT_MAX_SYNC_POSTS = int(os.getenv("FB_SYNC_MAX_POSTS", "500"))
-DEFAULT_MAX_CHECK_POSTS = int(os.getenv("FB_CHECK_MAX_POSTS", "500"))
+DEFAULT_MAX_CHECK_POSTS = int(os.getenv("FB_CHECK_MAX_POSTS", "200"))
 DEFAULT_SYNC_SLEEP_SECONDS = float(os.getenv("FB_SYNC_SLEEP_SECONDS", "1.5"))
 DEFAULT_CHECK_SLEEP_SECONDS = float(os.getenv("FB_CHECK_SLEEP_SECONDS", "0.5"))
 
@@ -53,6 +53,23 @@ class SyncResult:
     page_requests: int = 0
 
 
+@dataclass
+class CheckDeletedResult:
+    deleted_posts: list
+    checked_count: int
+    stopped_by_limit: bool = False
+    warning: str = ""
+
+    def __iter__(self):
+        return iter(self.deleted_posts)
+
+    def __len__(self):
+        return len(self.deleted_posts)
+
+    def __eq__(self, other):
+        return self.deleted_posts == other
+
+
 def get_access_token():
     token = os.getenv("FB_PAGE_ACCESS_TOKEN", "").strip()
     if not token:
@@ -70,6 +87,34 @@ def validate_date(value):
 
 def now_utc_iso():
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def parse_datetime_value(value):
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed
+        except ValueError:
+            pass
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed
+    except ValueError:
+        return None
+
+
+def format_local_datetime(value):
+    parsed = parse_datetime_value(value)
+    if not parsed:
+        return value or ""
+    return parsed.astimezone().strftime("%d/%m/%Y %H:%M:%S")
 
 
 def fetch_posts_since_until(
@@ -446,6 +491,13 @@ def check_deleted_posts(
         validate_date(since_date)
     if until_date:
         validate_date(until_date)
+    if since_date and until_date:
+        since_dt = datetime.strptime(since_date, "%Y-%m-%d")
+        until_dt = datetime.strptime(until_date, "%Y-%m-%d")
+        if until_dt <= since_dt:
+            raise ValueError("Ngày kết thúc phải lớn hơn ngày bắt đầu.")
+        if until_dt - since_dt > timedelta(days=7):
+            raise ValueError("Khoảng ngày kiểm tra deleted riêng không được vượt quá 7 ngày.")
     post_checker = post_checker or graph_post_exists
     db_path = init_db(db_path)
     checked_at = now_utc_iso()
@@ -458,7 +510,7 @@ def check_deleted_posts(
     if until_date:
         filters.append("created_time < ?")
         params.append(until_date)
-    params.append(max_checks)
+    params.append(max_checks + 1)
 
     with closing(sqlite3.connect(db_path)) as conn:
         rows = conn.execute(
@@ -471,7 +523,9 @@ def check_deleted_posts(
             """,
             params,
         ).fetchall()
-        for index, (post_id,) in enumerate(rows):
+        stopped_by_limit = len(rows) > max_checks
+        rows_to_check = rows[:max_checks]
+        for index, (post_id,) in enumerate(rows_to_check):
             exists = post_checker(post_id)
             conn.execute(
                 "update posts set last_checked_at = ? where post_id = ?",
@@ -496,11 +550,22 @@ def check_deleted_posts(
                     (post_id, checked_at),
                 )
                 deleted.append(post_id)
-            if sleep_seconds and index < len(rows) - 1:
+            if sleep_seconds and index < len(rows_to_check) - 1:
                 time.sleep(sleep_seconds)
         conn.commit()
 
-    return deleted
+    warning = ""
+    if stopped_by_limit:
+        warning = (
+            f"Đã kiểm tra đủ {max_checks} bài nên dừng để giảm rủi ro rate limit. "
+            "Hãy thu hẹp khoảng ngày hoặc chạy tiếp sau."
+        )
+    return CheckDeletedResult(
+        deleted_posts=deleted,
+        checked_count=len(rows_to_check),
+        stopped_by_limit=stopped_by_limit,
+        warning=warning,
+    )
 
 
 def export_report(db_path=DEFAULT_DB_PATH, csv_path=None):
@@ -537,7 +602,17 @@ def export_report(db_path=DEFAULT_DB_PATH, csv_path=None):
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(dict(row) for row in rows)
+        for row in rows:
+            output_row = dict(row)
+            for field in (
+                "created_time",
+                "first_seen_at",
+                "last_seen_at",
+                "last_checked_at",
+                "deleted_detected_at",
+            ):
+                output_row[field] = format_local_datetime(output_row.get(field, ""))
+            writer.writerow(output_row)
 
     return len(rows)
 
@@ -632,9 +707,12 @@ def run_cli(argv=None):
                     f"Đang dừng ở: {stop_text}. Hãy sync tiếp vào ngày mai hoặc chia nhỏ khoảng ngày."
                 )
         elif args.command == "check-deleted":
-            deleted = check_deleted_posts(args.db, since_date=args.since, until_date=args.until)
-            print(f"Phát hiện {len(deleted)} bài nghi đã xóa")
-            for post_id in deleted:
+            result = check_deleted_posts(args.db, since_date=args.since, until_date=args.until)
+            print(f"Đã kiểm tra {result.checked_count} bài")
+            print(f"Phát hiện {len(result)} bài nghi đã xóa")
+            if result.warning:
+                print(result.warning)
+            for post_id in result:
                 print(post_id)
         elif args.command == "report":
             count = export_report(args.db, args.out)
@@ -656,7 +734,7 @@ def launch_gui(default_db=DEFAULT_DB_PATH):
     db_var = StringVar(value=str(default_db))
     since_var = StringVar(value=datetime.now().strftime("%Y-%m-01"))
     until_var = StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-    check_since_var = StringVar(value=datetime.now().strftime("%Y-%m-01"))
+    check_since_var = StringVar(value=(datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
     check_until_var = StringVar(value=datetime.now().strftime("%Y-%m-%d"))
     report_var = StringVar(value=str(Path("facebook_archive") / "audit_report.csv"))
     status_var = StringVar(value="Sẵn sàng.")
@@ -738,12 +816,17 @@ def launch_gui(default_db=DEFAULT_DB_PATH):
                     )
                     message = format_sync_message(result)
                 elif action == "check":
-                    deleted = check_deleted_posts(
+                    result = check_deleted_posts(
                         db_var.get(),
                         since_date=check_since_var.get(),
                         until_date=check_until_var.get(),
                     )
-                    message = f"Phát hiện {len(deleted)} bài nghi đã xóa."
+                    message = (
+                        f"Đã kiểm tra {result.checked_count} bài.\n"
+                        f"Phát hiện {len(result)} bài nghi đã xóa."
+                    )
+                    if result.warning:
+                        message += f"\n{result.warning}"
                 else:
                     count = export_report(db_var.get(), report_var.get())
                     message = f"Đã xuất {count} dòng report."

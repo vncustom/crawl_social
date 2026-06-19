@@ -5,7 +5,7 @@ Cong cu Python de crawl bai viet Facebook Page, luu snapshot vao SQLite, kiem tr
 ## Chuc nang
 
 - `sync`: crawl bai viet theo khoang ngay, luu snapshot vao SQLite, tu gioi han 500 bai/lien chay va nghi giua cac request.
-- `check-deleted`: kiem tra toi da 500 bai da tung luu trong khoang ngay rieng con ton tai tren Graph API khong. Lenh nay ton request hon `sync`.
+- `check-deleted`: kiem tra toi da 200 bai da tung luu trong khoang ngay rieng con ton tai tren Graph API khong. Khoang ngay rieng nay khong duoc vuot qua 7 ngay. Lenh nay ton request hon `sync`.
 - `report`: xuat bao cao audit ra CSV.
 - `gui`: mo giao dien Tkinter de nhap ngay, chay sync, check deleted, export report.
 
@@ -46,7 +46,7 @@ Co the doi gioi han an toan neu that su can:
 ```powershell
 $env:FB_SYNC_MAX_POSTS="500"
 $env:FB_SYNC_SLEEP_SECONDS="1.5"
-$env:FB_CHECK_MAX_POSTS="500"
+$env:FB_CHECK_MAX_POSTS="200"
 $env:FB_CHECK_SLEEP_SECONDS="0.5"
 ```
 
@@ -84,7 +84,7 @@ Khi `sync` chay het tron mot khoang ngay, app se so sanh cac `post_id` trong lan
 python fbcrawl.py check-deleted --since 2026-06-01 --until 2026-06-08
 ```
 
-Lenh nay doc cac bai trong DB theo khoang ngay rieng cua `check-deleted`, goi Graph API theo tung `post_id`, va danh dau `suspected_deleted` neu bai khong con truy cap duoc. De giam rui ro rate limit, app chi check toi da 500 bai moi lan va nghi giua cac request.
+Lenh nay doc cac bai trong DB theo khoang ngay rieng cua `check-deleted`, goi Graph API theo tung `post_id`, va danh dau `suspected_deleted` neu bai khong con truy cap duoc. De giam rui ro rate limit, app chi check toi da 200 bai moi lan va nghi giua cac request. Khoang ngay nhap cho `check-deleted` khong duoc vuot qua 7 ngay.
 
 Luu y: ket qua la "nghi da xoa" vi Graph API co the khong tra bai do vi quyen/token/loi tam thoi. Nen uu tien `sync` dinh ky de co snapshot, chi dung `check-deleted` khi can xac minh them.
 
@@ -94,7 +94,7 @@ Luu y: ket qua la "nghi da xoa" vi Graph API co the khong tra bai do vi quyen/to
 python fbcrawl.py report --out facebook_archive/audit_report.csv
 ```
 
-CSV gom `post_id`, `status`, thoi diem thay dau/cuoi, thoi diem check, thoi diem nghi xoa, noi dung bai, permalink, anh, va thong tin YouTube neu co.
+CSV gom `post_id`, `status`, thoi diem thay dau/cuoi, thoi diem check, thoi diem nghi xoa, noi dung bai, permalink, anh, va thong tin YouTube neu co. Cac cot thoi gian duoc xuat theo gio local cua may tinh, dang `DD/MM/YYYY HH:MM:SS`.
 
 ### 4. Dung DB tuy chinh
 
@@ -126,7 +126,7 @@ Trong giao dien:
 2. Nhap ngay bat dau va ngay ket thuc theo dinh dang `YYYY-MM-DD`.
 3. Nhap duong dan file report CSV.
 4. O muc `Dong bo va kiem tra bang snapshot`, nhap ngay rieng cho Sync, roi bam `Dong bo`.
-5. O muc `Kiem tra deleted rieng`, nhap ngay rieng cho Check Deleted, roi bam `Kiem tra deleted rieng` neu can xac minh them bang tung `post_id`.
+5. O muc `Kiem tra deleted rieng`, nhap ngay rieng cho Check Deleted, roi bam `Kiem tra deleted rieng` neu can xac minh them bang tung `post_id`. Khoang ngay nay toi da 7 ngay va moi lan chi goi toi da 200 request.
 6. O muc `Xuat bao cao`, chon file CSV va bam `Xuat bao cao`.
 
 Khi tac vu dang chay, app se khoa cac nut va hien thanh tien trinh de tranh nham la chuong trinh bi treo. Neu thieu token, sai ngay, loi mang, loi Graph API, hoac loi ghi file, app se hien hop thoai thong bao loi.
@@ -149,6 +149,6 @@ python -m py_compile fbcrawl.py tests/test_fbcrawl.py
 
 - Nen chay `sync` theo lich, vi he thong chi phat hien xoa cho cac bai da tung duoc luu.
 - Voi Page dang rat nhieu bai, nen sync theo ngay/tuan thay vi chon khoang qua dai.
-- Khong nen bam `check-deleted` lien tuc. Lenh nay goi tung `post_id`, mac du da gioi han 500 bai moi lan.
+- Khong nen bam `check-deleted` lien tuc. Lenh nay goi tung `post_id`, mac du da gioi han 200 bai moi lan.
 - De audit nhan vien dang/xoa bai chinh xac hon, nen yeu cau nhan vien dang qua cong cu noi bo hoac luu mapping `employee_id -> post_id`.
 - Thu muc `facebook_archive/`, SQLite DB, CSV report, cache va token local da duoc ignore trong Git.
