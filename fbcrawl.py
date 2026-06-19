@@ -25,6 +25,13 @@ DEFAULT_SYNC_SLEEP_SECONDS = float(os.getenv("FB_SYNC_SLEEP_SECONDS", "1.5"))
 DEFAULT_CHECK_SLEEP_SECONDS = float(os.getenv("FB_CHECK_SLEEP_SECONDS", "0.5"))
 
 
+def configure_console_encoding(stdout=None, stderr=None):
+    for stream in (stdout or sys.stdout, stderr or sys.stderr):
+        encoding = (getattr(stream, "encoding", "") or "").lower()
+        if encoding != "utf-8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+
+
 @dataclass
 class FetchResult:
     posts: list
@@ -49,7 +56,7 @@ class SyncResult:
 def get_access_token():
     token = os.getenv("FB_PAGE_ACCESS_TOKEN", "").strip()
     if not token:
-        raise RuntimeError("Thieu bien moi truong FB_PAGE_ACCESS_TOKEN.")
+        raise RuntimeError("Thiếu biến môi trường FB_PAGE_ACCESS_TOKEN.")
     return token
 
 
@@ -57,7 +64,7 @@ def validate_date(value):
     try:
         datetime.strptime(value, "%Y-%m-%d")
     except ValueError as exc:
-        raise ValueError(f"Ngay khong hop le: {value}. Dinh dang dung la YYYY-MM-DD.") from exc
+        raise ValueError(f"Ngày không hợp lệ: {value}. Định dạng đúng là YYYY-MM-DD.") from exc
     return value
 
 
@@ -316,7 +323,7 @@ def mark_missing_posts_from_sync(conn, since_date, until_date, seen_post_ids, ch
         conn.execute(
             """
             insert into deletion_events (post_id, detected_at, source, note)
-            values (?, ?, 'sync_snapshot', 'Bai da tung co trong khoang ngay nhung khong xuat hien trong lan sync day du moi')
+            values (?, ?, 'sync_snapshot', 'Bài đã từng có trong khoảng ngày nhưng không xuất hiện trong lần sync đầy đủ mới')
             """,
             (post_id, checked_at),
         )
@@ -334,7 +341,7 @@ def sync_posts(
     progress_callback=None,
 ):
     if not since_date or not until_date:
-        raise ValueError("Can nhap since_date va until_date.")
+        raise ValueError("Cần nhập Từ ngày và Đến ngày.")
     validate_date(since_date)
     validate_date(until_date)
     fetcher = fetcher or fetch_posts_since_until
@@ -430,24 +437,39 @@ def sync_posts(
 def check_deleted_posts(
     db_path=DEFAULT_DB_PATH,
     post_checker=None,
+    since_date=None,
+    until_date=None,
     max_checks=DEFAULT_MAX_CHECK_POSTS,
     sleep_seconds=DEFAULT_CHECK_SLEEP_SECONDS,
 ):
+    if since_date:
+        validate_date(since_date)
+    if until_date:
+        validate_date(until_date)
     post_checker = post_checker or graph_post_exists
     db_path = init_db(db_path)
     checked_at = now_utc_iso()
     deleted = []
+    filters = ["status != 'suspected_deleted'"]
+    params = []
+    if since_date:
+        filters.append("created_time >= ?")
+        params.append(since_date)
+    if until_date:
+        filters.append("created_time < ?")
+        params.append(until_date)
+    params.append(max_checks)
 
     with closing(sqlite3.connect(db_path)) as conn:
         rows = conn.execute(
-            """
+            f"""
             select post_id
             from posts
-            where status != 'suspected_deleted'
+            where {' and '.join(filters)}
             order by coalesce(last_checked_at, ''), created_time
             limit ?
             """,
-            (max_checks,),
+            params,
         ).fetchall()
         for index, (post_id,) in enumerate(rows):
             exists = post_checker(post_id)
@@ -469,7 +491,7 @@ def check_deleted_posts(
                 conn.execute(
                     """
                     insert into deletion_events (post_id, detected_at, source, note)
-                    values (?, ?, 'polling', 'Graph API khong con tra ve bai viet')
+                    values (?, ?, 'polling', 'Graph API không còn trả về bài viết')
                     """,
                     (post_id, checked_at),
                 )
@@ -567,24 +589,27 @@ def save_posts(posts, since_date, until_date):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Facebook Page crawler va audit bai bi xoa.")
-    parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="Duong dan SQLite database.")
+    parser = argparse.ArgumentParser(description="Facebook Page crawler và audit bài bị xóa.")
+    parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="Đường dẫn SQLite database.")
     subparsers = parser.add_subparsers(dest="command")
 
-    sync_parser = subparsers.add_parser("sync", help="Crawl bai moi va cap nhat snapshot.")
-    sync_parser.add_argument("--since", required=True, help="Ngay bat dau YYYY-MM-DD.")
-    sync_parser.add_argument("--until", required=True, help="Ngay ket thuc YYYY-MM-DD.")
+    sync_parser = subparsers.add_parser("sync", help="Crawl bài mới và cập nhật snapshot.")
+    sync_parser.add_argument("--since", required=True, help="Ngày bắt đầu YYYY-MM-DD.")
+    sync_parser.add_argument("--until", required=True, help="Ngày kết thúc YYYY-MM-DD.")
 
-    subparsers.add_parser("check-deleted", help="Kiem tra cac bai da biet con ton tai khong.")
+    check_parser = subparsers.add_parser("check-deleted", help="Kiểm tra riêng các bài đã biết còn tồn tại không.")
+    check_parser.add_argument("--since", help="Ngày bắt đầu riêng cho check deleted YYYY-MM-DD.")
+    check_parser.add_argument("--until", help="Ngày kết thúc riêng cho check deleted YYYY-MM-DD.")
 
-    report_parser = subparsers.add_parser("report", help="Xuat CSV audit.")
+    report_parser = subparsers.add_parser("report", help="Xuất CSV audit.")
     report_parser.add_argument("--out", default=str(Path("facebook_archive") / "audit_report.csv"))
 
-    subparsers.add_parser("gui", help="Mo giao dien Tkinter.")
+    subparsers.add_parser("gui", help="Mở giao diện Tkinter.")
     return parser
 
 
 def run_cli(argv=None):
+    configure_console_encoding()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.command:
@@ -594,30 +619,30 @@ def run_cli(argv=None):
     try:
         if args.command == "sync":
             result = sync_posts(args.db, args.since, args.until)
-            print(f"Da sync {result.synced_count} bai vao {Path(args.db).resolve()}")
-            print(f"So request phan trang: {result.page_requests}")
+            print(f"Đã sync {result.synced_count} bài vào {Path(args.db).resolve()}")
+            print(f"Số request phân trang: {result.page_requests}")
             if result.deleted_by_snapshot:
-                print(f"Tu snapshot sync, phat hien {len(result.deleted_by_snapshot)} bai nghi da xoa:")
+                print(f"Từ snapshot sync, phát hiện {len(result.deleted_by_snapshot)} bài nghi đã xóa:")
                 for post_id in result.deleted_by_snapshot:
                     print(post_id)
             if result.stopped_by_limit:
-                stop_text = result.stopped_at_created_time or result.stopped_at_post_id or "khong ro"
+                stop_text = result.stopped_at_created_time or result.stopped_at_post_id or "không rõ"
                 print(
-                    "Da dat gioi han 500 bai nen dung de tranh goi API qua nhieu. "
-                    f"Dang dung o: {stop_text}. Hay sync tiep vao ngay mai hoac chia nho khoang ngay."
+                    "Đã đạt giới hạn 500 bài nên dừng để tránh gọi API quá nhiều. "
+                    f"Đang dừng ở: {stop_text}. Hãy sync tiếp vào ngày mai hoặc chia nhỏ khoảng ngày."
                 )
         elif args.command == "check-deleted":
-            deleted = check_deleted_posts(args.db)
-            print(f"Phat hien {len(deleted)} bai nghi da xoa")
+            deleted = check_deleted_posts(args.db, since_date=args.since, until_date=args.until)
+            print(f"Phát hiện {len(deleted)} bài nghi đã xóa")
             for post_id in deleted:
                 print(post_id)
         elif args.command == "report":
             count = export_report(args.db, args.out)
-            print(f"Da xuat {count} dong audit ra {Path(args.out).resolve()}")
+            print(f"Đã xuất {count} dòng audit ra {Path(args.out).resolve()}")
         elif args.command == "gui":
             launch_gui(args.db)
     except Exception as exc:
-        print(f"Loi: {exc}", file=sys.stderr)
+        print(f"Lỗi: {exc}", file=sys.stderr)
         return 1
     return 0
 
@@ -625,28 +650,43 @@ def run_cli(argv=None):
 def launch_gui(default_db=DEFAULT_DB_PATH):
     root = Tk()
     root.title("Facebook Page Audit")
-    root.geometry("620x310")
+    root.geometry("680x470")
     root.resizable(False, False)
 
     db_var = StringVar(value=str(default_db))
     since_var = StringVar(value=datetime.now().strftime("%Y-%m-01"))
     until_var = StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+    check_since_var = StringVar(value=datetime.now().strftime("%Y-%m-01"))
+    check_until_var = StringVar(value=datetime.now().strftime("%Y-%m-%d"))
     report_var = StringVar(value=str(Path("facebook_archive") / "audit_report.csv"))
-    status_var = StringVar(value="San sang.")
+    status_var = StringVar(value="Sẵn sàng.")
 
     frame = ttk.Frame(root, padding=16)
     frame.pack(fill="both", expand=True)
 
-    def add_row(row, label, variable):
-        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=5)
-        entry = ttk.Entry(frame, textvariable=variable, width=54)
+    def add_row(parent, row, label, variable):
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=5)
+        entry = ttk.Entry(parent, textvariable=variable, width=54)
         entry.grid(row=row, column=1, sticky="ew", pady=5)
         return entry
 
-    add_row(0, "SQLite DB", db_var)
-    add_row(1, "Tu ngay", since_var)
-    add_row(2, "Den ngay", until_var)
-    add_row(3, "File report", report_var)
+    db_frame = ttk.LabelFrame(frame, text="Cấu hình chung", padding=10)
+    db_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+    add_row(db_frame, 0, "SQLite DB", db_var)
+
+    sync_frame = ttk.LabelFrame(frame, text="Đồng bộ và kiểm tra bằng snapshot", padding=10)
+    sync_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+    add_row(sync_frame, 0, "Từ ngày", since_var)
+    add_row(sync_frame, 1, "Đến ngày", until_var)
+
+    check_frame = ttk.LabelFrame(frame, text="Kiểm tra deleted riêng", padding=10)
+    check_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+    add_row(check_frame, 0, "Từ ngày", check_since_var)
+    add_row(check_frame, 1, "Đến ngày", check_until_var)
+
+    report_frame = ttk.LabelFrame(frame, text="Xuất báo cáo", padding=10)
+    report_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+    add_row(report_frame, 0, "File report", report_var)
 
     button_frame = ttk.Frame(frame)
     button_frame.grid(row=4, column=0, columnspan=2, pady=14)
@@ -665,16 +705,16 @@ def launch_gui(default_db=DEFAULT_DB_PATH):
 
     def format_sync_message(result):
         lines = [
-            f"Da sync {result.synced_count} bai.",
-            f"So request phan trang: {result.page_requests}.",
+            f"Đã sync {result.synced_count} bài.",
+            f"Số request phân trang: {result.page_requests}.",
         ]
         if result.deleted_by_snapshot:
-            lines.append(f"Snapshot phat hien {len(result.deleted_by_snapshot)} bai nghi da xoa.")
+            lines.append(f"Snapshot phát hiện {len(result.deleted_by_snapshot)} bài nghi đã xóa.")
         if result.stopped_by_limit:
-            stop_text = result.stopped_at_created_time or result.stopped_at_post_id or "khong ro"
+            stop_text = result.stopped_at_created_time or result.stopped_at_post_id or "không rõ"
             lines.append(
-                "Da dat gioi han 500 bai nen tam dung de giam rui ro rate limit. "
-                f"Dang dung o: {stop_text}. Ngay mai hay sync tiep hoac chia nho khoang ngay."
+                "Đã đạt giới hạn 500 bài nên tạm dừng để giảm rủi ro rate limit. "
+                f"Đang dừng ở: {stop_text}. Ngày mai hãy sync tiếp hoặc chia nhỏ khoảng ngày."
             )
         return "\n".join(lines)
 
@@ -683,7 +723,7 @@ def launch_gui(default_db=DEFAULT_DB_PATH):
             root.after(
                 0,
                 lambda: status_var.set(
-                    f"Dang sync... da lay {count}/500 bai, {page_requests} request."
+                    f"Đang sync... đã lấy {count}/500 bài, {page_requests} request."
                 ),
             )
 
@@ -698,33 +738,39 @@ def launch_gui(default_db=DEFAULT_DB_PATH):
                     )
                     message = format_sync_message(result)
                 elif action == "check":
-                    deleted = check_deleted_posts(db_var.get())
-                    message = f"Phat hien {len(deleted)} bai nghi da xoa."
+                    deleted = check_deleted_posts(
+                        db_var.get(),
+                        since_date=check_since_var.get(),
+                        until_date=check_until_var.get(),
+                    )
+                    message = f"Phát hiện {len(deleted)} bài nghi đã xóa."
                 else:
                     count = export_report(db_var.get(), report_var.get())
-                    message = f"Da xuat {count} dong report."
+                    message = f"Đã xuất {count} dòng report."
 
                 root.after(0, lambda: status_var.set(message.splitlines()[0]))
-                root.after(0, lambda: messagebox.showinfo("Hoan tat", message))
+                root.after(0, lambda: messagebox.showinfo("Hoàn tất", message))
             except Exception as exc:
                 error_message = str(exc)
-                root.after(0, lambda: status_var.set(f"Loi: {error_message}"))
-                root.after(0, lambda: messagebox.showerror("Loi", error_message))
+                root.after(0, lambda: status_var.set(f"Lỗi: {error_message}"))
+                root.after(0, lambda: messagebox.showerror("Lỗi", error_message))
             finally:
                 root.after(0, lambda: set_busy(False))
 
         set_busy(True)
-        status_var.set("Dang chay, vui long doi...")
+        status_var.set("Đang chạy, vui lòng đợi...")
         threading.Thread(target=worker, daemon=True).start()
 
-    buttons.append(ttk.Button(button_frame, text="Sync", command=lambda: run_action("sync")))
-    buttons.append(ttk.Button(button_frame, text="Check Deleted", command=lambda: run_action("check")))
-    buttons.append(ttk.Button(button_frame, text="Export Report", command=lambda: run_action("report")))
+    buttons.append(ttk.Button(button_frame, text="Đồng bộ", command=lambda: run_action("sync")))
+    buttons.append(ttk.Button(button_frame, text="Kiểm tra deleted riêng", command=lambda: run_action("check")))
+    buttons.append(ttk.Button(button_frame, text="Xuất báo cáo", command=lambda: run_action("report")))
     for button in buttons:
         button.pack(side="left", padx=6)
 
-    ttk.Label(frame, textvariable=status_var, wraplength=580).grid(row=6, column=0, columnspan=2, sticky="w")
-    frame.columnconfigure(1, weight=1)
+    ttk.Label(frame, textvariable=status_var, wraplength=640).grid(row=6, column=0, columnspan=2, sticky="w")
+    frame.columnconfigure(0, weight=1)
+    for child_frame in (db_frame, sync_frame, check_frame, report_frame):
+        child_frame.columnconfigure(1, weight=1)
     root.mainloop()
 
 

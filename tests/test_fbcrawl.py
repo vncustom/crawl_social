@@ -14,6 +14,24 @@ fbcrawl = importlib.import_module("fbcrawl")
 
 
 class FbCrawlAuditTest(unittest.TestCase):
+    def test_configure_console_encoding_uses_utf8_when_reconfigure_is_available(self):
+        class FakeStream:
+            encoding = "cp1252"
+
+            def __init__(self):
+                self.requested_encoding = None
+
+            def reconfigure(self, encoding=None):
+                self.requested_encoding = encoding
+
+        stdout = FakeStream()
+        stderr = FakeStream()
+
+        fbcrawl.configure_console_encoding(stdout, stderr)
+
+        self.assertEqual(stdout.requested_encoding, "utf-8")
+        self.assertEqual(stderr.requested_encoding, "utf-8")
+
     def test_sync_stores_posts_and_snapshots(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "audit.db"
@@ -219,6 +237,44 @@ class FbCrawlAuditTest(unittest.TestCase):
 
             self.assertEqual(status, "suspected_deleted")
             self.assertEqual(deletion_count, 1)
+
+    def test_check_deleted_filters_by_own_date_range(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "audit.db"
+            fbcrawl.sync_posts(
+                db_path=db_path,
+                since_date="2026-06-01",
+                until_date="2026-06-10",
+                fetcher=lambda since, until: [
+                    {
+                        "id": "page_early",
+                        "message": "Outside range",
+                        "created_time": "2026-06-02T01:00:00+0000",
+                    },
+                    {
+                        "id": "page_late",
+                        "message": "Inside range",
+                        "created_time": "2026-06-08T01:00:00+0000",
+                    },
+                ],
+            )
+
+            checked = []
+            deleted = fbcrawl.check_deleted_posts(
+                db_path=db_path,
+                since_date="2026-06-07",
+                until_date="2026-06-09",
+                post_checker=lambda post_id: checked.append(post_id) or False,
+                sleep_seconds=0,
+            )
+
+            self.assertEqual(checked, ["page_late"])
+            self.assertEqual(deleted, ["page_late"])
+            with closing(sqlite3.connect(db_path)) as conn:
+                rows = conn.execute(
+                    "select post_id, status from posts order by post_id"
+                ).fetchall()
+            self.assertEqual(rows, [("page_early", "active"), ("page_late", "suspected_deleted")])
 
     def test_export_report_writes_audit_csv(self):
         with tempfile.TemporaryDirectory() as temp_dir:

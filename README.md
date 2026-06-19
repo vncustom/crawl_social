@@ -5,7 +5,7 @@ Cong cu Python de crawl bai viet Facebook Page, luu snapshot vao SQLite, kiem tr
 ## Chuc nang
 
 - `sync`: crawl bai viet theo khoang ngay, luu snapshot vao SQLite, tu gioi han 500 bai/lien chay va nghi giua cac request.
-- `check-deleted`: kiem tra toi da 500 bai da tung luu con ton tai tren Graph API khong. Lenh nay ton request hon `sync`.
+- `check-deleted`: kiem tra toi da 500 bai da tung luu trong khoang ngay rieng con ton tai tren Graph API khong. Lenh nay ton request hon `sync`.
 - `report`: xuat bao cao audit ra CSV.
 - `gui`: mo giao dien Tkinter de nhap ngay, chay sync, check deleted, export report.
 
@@ -81,10 +81,10 @@ Khi `sync` chay het tron mot khoang ngay, app se so sanh cac `post_id` trong lan
 ### 2. Kiem tra bai bi xoa
 
 ```powershell
-python fbcrawl.py check-deleted
+python fbcrawl.py check-deleted --since 2026-06-01 --until 2026-06-08
 ```
 
-Lenh nay doc cac bai trong DB, goi Graph API theo tung `post_id`, va danh dau `suspected_deleted` neu bai khong con truy cap duoc. De giam rui ro rate limit, app chi check toi da 500 bai moi lan va nghi giua cac request.
+Lenh nay doc cac bai trong DB theo khoang ngay rieng cua `check-deleted`, goi Graph API theo tung `post_id`, va danh dau `suspected_deleted` neu bai khong con truy cap duoc. De giam rui ro rate limit, app chi check toi da 500 bai moi lan va nghi giua cac request.
 
 Luu y: ket qua la "nghi da xoa" vi Graph API co the khong tra bai do vi quyen/token/loi tam thoi. Nen uu tien `sync` dinh ky de co snapshot, chi dung `check-deleted` khi can xac minh them.
 
@@ -125,9 +125,9 @@ Trong giao dien:
 1. Nhap duong dan SQLite DB.
 2. Nhap ngay bat dau va ngay ket thuc theo dinh dang `YYYY-MM-DD`.
 3. Nhap duong dan file report CSV.
-4. Bam `Sync` de crawl, luu snapshot, va tu so sanh snapshot neu sync tron khoang ngay.
-5. Bam `Check Deleted` de kiem tra them bang tung `post_id` neu can.
-6. Bam `Export Report` de xuat CSV.
+4. O muc `Dong bo va kiem tra bang snapshot`, nhap ngay rieng cho Sync, roi bam `Dong bo`.
+5. O muc `Kiem tra deleted rieng`, nhap ngay rieng cho Check Deleted, roi bam `Kiem tra deleted rieng` neu can xac minh them bang tung `post_id`.
+6. O muc `Xuat bao cao`, chon file CSV va bam `Xuat bao cao`.
 
 Khi tac vu dang chay, app se khoa cac nut va hien thanh tien trinh de tranh nham la chuong trinh bi treo. Neu thieu token, sai ngay, loi mang, loi Graph API, hoac loi ghi file, app se hien hop thoai thong bao loi.
 
