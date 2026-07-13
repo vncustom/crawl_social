@@ -1,11 +1,15 @@
 from datetime import UTC, datetime
 
-from fastapi import Cookie, Depends, HTTPException, status
+from collections.abc import Generator
+
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import SESSION_COOKIE, hash_secret
+from app.auth import SESSION_COOKIE, csrf_matches, hash_secret
+from app.config import get_settings
 from app.db import get_session
+from app.graph.client import GraphClient
 from app.models import AdminSession, AdminUser
 
 
@@ -34,3 +38,21 @@ def get_current_admin(
     if admin is None or not admin.enabled:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tài khoản không hoạt động.")
     return admin
+
+
+def require_csrf(
+    x_csrf_token: str | None = Header(default=None),
+    admin_session: AdminSession = Depends(get_admin_session),
+) -> AdminSession:
+    if not x_csrf_token or not csrf_matches(x_csrf_token, admin_session.csrf_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token không hợp lệ.")
+    return admin_session
+
+
+def get_graph_client() -> Generator[GraphClient, None, None]:
+    settings = get_settings()
+    client = GraphClient(settings.fb_page_access_token, settings.fb_graph_version)
+    try:
+        yield client
+    finally:
+        client.close()
