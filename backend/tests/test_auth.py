@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from contextlib import contextmanager
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -8,6 +9,7 @@ from app.main import create_app
 from app.models import AdminUser, Base
 
 
+@contextmanager
 def build_client():
     from fastapi.testclient import TestClient
 
@@ -34,7 +36,11 @@ def build_client():
             yield session
 
     app.dependency_overrides[get_session] = override_session
-    return TestClient(app)
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        engine.dispose()
 
 
 def test_login_sets_http_only_cookie_and_returns_csrf():

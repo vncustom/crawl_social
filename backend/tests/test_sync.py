@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -6,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.graph.client import GraphAPIError
 from app.models import Base, JobStatus, JobType, MetricAvailability, MetricStatus, Page, Post, PostSnapshot, SyncJob
 from app.sync.service import SyncService
-from app.worker import enqueue_daily_jobs
+from app.worker import daily_schedule_date, enqueue_daily_jobs
 
 
 class FakeGraph:
@@ -31,10 +32,15 @@ class FakeGraph:
         return iter(())
 
 
+@contextmanager
 def build_db():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
-    return Session(engine, expire_on_commit=False)
+    try:
+        with Session(engine, expire_on_commit=False) as db:
+            yield db
+    finally:
+        engine.dispose()
 
 
 def add_job(db, page, status=JobStatus.running):
@@ -86,3 +92,14 @@ def test_daily_scheduler_enqueues_yesterday_through_today():
         assert jobs[0].job_type == JobType.daily
         assert jobs[0].start_date == date(2026, 7, 12)
         assert jobs[0].end_date == date(2026, 7, 13)
+
+        assert enqueue_daily_jobs(db, datetime(2026, 7, 13, 2, 0, tzinfo=UTC)) == []
+
+
+def test_daily_schedule_runs_once_after_two_am_bangkok():
+    before = datetime(2026, 7, 12, 18, 59, tzinfo=UTC)
+    after = datetime(2026, 7, 12, 19, 0, tzinfo=UTC)
+
+    assert daily_schedule_date(before, "Asia/Bangkok", None) is None
+    assert daily_schedule_date(after, "Asia/Bangkok", None) == date(2026, 7, 13)
+    assert daily_schedule_date(after, "Asia/Bangkok", date(2026, 7, 13)) is None

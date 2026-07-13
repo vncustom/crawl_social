@@ -6,10 +6,10 @@ from test_reporting import build_report
 
 
 def test_workbook_matches_seven_sheet_contract():
-    db, page = build_report()
-    dataset = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
+    with build_report() as (db, page):
+        dataset = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
 
-    workbook = build_workbook(dataset, datetime(2026, 7, 13, 1, tzinfo=UTC))
+        workbook = build_workbook(dataset, datetime(2026, 7, 13, 1, tzinfo=UTC))
 
     assert workbook.sheetnames == [
         "Tổng quan",
@@ -29,9 +29,9 @@ def test_workbook_matches_seven_sheet_contract():
 
 
 def test_missing_insight_is_written_as_blank():
-    db, page = build_report()
-    dataset = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
+    with build_report() as (db, page):
+        dataset = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
 
-    workbook = build_workbook(dataset, datetime.now(UTC))
+        workbook = build_workbook(dataset, datetime.now(UTC))
 
     assert workbook["Insights"]["F2"].value is None

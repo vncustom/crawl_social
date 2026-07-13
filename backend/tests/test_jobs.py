@@ -12,8 +12,11 @@ from app.sync.jobs import ActiveJobConflict, claim_next_job, enqueue_job, reques
 def db():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
-    with Session(engine, expire_on_commit=False) as session:
-        yield session
+    try:
+        with Session(engine, expire_on_commit=False) as session:
+            yield session
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture

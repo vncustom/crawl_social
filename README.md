@@ -1,154 +1,125 @@
-# Facebook Page Audit Crawler
+# Facebook Reporting Dashboard
 
-Cong cu Python de crawl bai viet Facebook Page, luu snapshot vao SQLite, kiem tra bai da dang co bi xoa hay khong, va xuat bao cao CSV. App co ca command line va giao dien Tkinter.
+Ứng dụng nội bộ thu thập dữ liệu nhiều Facebook Page, lưu lịch sử vào PostgreSQL, hiển thị dashboard theo khoảng ngày và xuất báo cáo Excel 7 sheet. Người dùng đăng nhập bằng một tài khoản quản trị; cấu trúc dữ liệu đã chừa trường `role` để bổ sung phân quyền sau.
 
-## Chuc nang
+Ứng dụng cũ `fbcrawl.py` vẫn được giữ nguyên để audit bài viết bằng SQLite/CSV.
 
-- `sync`: crawl bai viet theo khoang ngay, luu snapshot vao SQLite, tu gioi han 500 bai/lien chay va nghi giua cac request.
-- `check-deleted`: kiem tra toi da 200 bai da tung luu trong khoang ngay rieng con ton tai tren Graph API khong. Khoang ngay rieng nay khong duoc vuot qua 7 ngay. Lenh nay ton request hon `sync`.
-- `report`: xuat bao cao audit ra CSV.
-- `gui`: mo giao dien Tkinter de nhap ngay, chay sync, check deleted, export report.
+## Chức năng chính
 
-## Cai dat
+- Nhập từng Page ID trong trang quản trị; Page mặc định là `1125132200689307`.
+- Token chỉ được đọc từ biến môi trường `FB_PAGE_ACCESS_TOKEN`, không lưu trong database hay trả về API.
+- Tạo backfill 90 ngày khi thêm Page, đồng bộ thủ công và theo dõi trạng thái job.
+- Lọc dashboard theo Page và hai ngày bao gồm cả ngày đầu/cuối; mặc định từ một tháng trước đến hôm nay theo `Asia/Bangkok`.
+- KPI, bài đăng theo ngày, top 5 bài và biểu đồ Insights theo ngày: follower mới, tổng follower, tương tác bài, lượt xem video và lượt xem Page.
+- Xuất Excel dùng đúng cùng dataset với dashboard, giữ ô trống khi Facebook không cung cấp metric.
 
-Can Python 3.10+.
+## Khởi chạy bằng Docker
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-Tkinter thuong co san trong Python tren Windows, nen khong nam trong `requirements.txt`.
-
-## Cau hinh token
-
-App doc Page Access Token tu bien moi truong `FB_PAGE_ACCESS_TOKEN`.
+Yêu cầu Docker Desktop có Docker Compose. Tạo cấu hình local:
 
 ```powershell
-$env:FB_PAGE_ACCESS_TOKEN="page_access_token_cua_ban"
+Copy-Item .env.example .env
 ```
 
-Mac dinh Page ID dang la `1125132200689307`. Neu can doi Page ID ma khong sua code:
+Mở `.env` và thay tối thiểu ba giá trị:
+
+- `FB_PAGE_ACCESS_TOKEN`: Page Access Token có quyền đọc Page/Insights cần thiết.
+- `APP_SECRET_KEY`: chuỗi ngẫu nhiên ít nhất 32 ký tự.
+- `POSTGRES_PASSWORD`: mật khẩu database mạnh.
+
+Khởi động, migrate database và tạo dữ liệu ban đầu:
 
 ```powershell
-$env:FB_PAGE_ID="page_id_cua_ban"
+docker compose up -d --build
+docker compose exec api alembic upgrade head
+docker compose exec api python -m app.cli create-admin --username admin
+docker compose exec api python -m app.cli seed-default-page
+Invoke-RestMethod http://localhost:8000/api/health
 ```
 
-Co the doi Graph API version:
+Lệnh `create-admin` yêu cầu nhập mật khẩu hai lần, tối thiểu 12 ký tự. Lệnh seed xác minh Page mặc định qua Facebook và tạo job backfill 90 ngày; có thể chạy lại an toàn mà không tạo Page trùng.
+
+Mở dashboard tại [http://localhost:3000](http://localhost:3000). API trực tiếp ở `http://localhost:8000`; frontend tự proxy `/api` tới API trong Docker.
+
+> Worker có thể khởi động lại trong khoảng ngắn trước lần migration đầu tiên. Sau `alembic upgrade head`, chính sách restart sẽ tự đưa worker về trạng thái hoạt động.
+
+## Biến môi trường
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `FB_PAGE_ACCESS_TOKEN` | bắt buộc | Token chung dùng gọi Facebook Graph API |
+| `FB_GRAPH_VERSION` | `v25.0` | Phiên bản Graph API |
+| `DEFAULT_PAGE_ID` | `1125132200689307` | Page được tạo bởi lệnh seed |
+| `DATABASE_URL` | Compose tự đặt | SQLAlchemy URL tới PostgreSQL |
+| `APP_SECRET_KEY` | bắt buộc | Khóa bí mật của ứng dụng |
+| `REPORT_TIMEZONE` | `Asia/Bangkok` | Múi giờ tính ngày báo cáo |
+| `COOKIE_SECURE` | `false` | Đặt `true` khi chạy production qua HTTPS |
+| `POSTGRES_DB/USER/PASSWORD` | xem `.env.example` | Cấu hình PostgreSQL trong Compose |
+
+Không commit `.env` hoặc token. Khi xoay token, thay `FB_PAGE_ACCESS_TOKEN` trong `.env` rồi chạy:
 
 ```powershell
-$env:FB_GRAPH_VERSION="v25.0"
+docker compose up -d --force-recreate api worker
 ```
 
-Co the doi gioi han an toan neu that su can:
+## Vận hành
+
+- Mỗi Page chỉ có một job ở trạng thái active (`queued`, `running`, `retrying`, `cancelling`). Yêu cầu trùng trả về job hiện có thay vì chạy song song.
+- Job định kỳ lấy dữ liệu hôm qua đến hôm nay lúc 02:00 theo múi giờ Page. Page đã tắt hoặc tắt đồng bộ hằng ngày sẽ được bỏ qua.
+- Dashboard đánh dấu dữ liệu `fresh`, `stale`, `partial` hoặc `unavailable`. `partial/unavailable` thường nghĩa là token thiếu quyền hoặc Facebook đã đổi/ngừng metric; hệ thống không tự thay bằng metric khác và không biến dữ liệu thiếu thành 0.
+- Khi metric lỗi, xem trạng thái job và `metric_availability`, kiểm tra quyền token và phiên bản Graph API, sau đó tạo backfill cho khoảng ngày cần lấy lại.
+- Sau khi triển khai HTTPS, đặt `COOKIE_SECURE=true`.
+- Phiên bản đầu có một quản trị viên và chưa phân quyền. Khi mở rộng nhiều người dùng, áp dụng `AdminUser.role` cho quyền xem Page, chạy job và quản trị tài khoản.
+
+### Sao lưu và khôi phục PostgreSQL
 
 ```powershell
-$env:FB_SYNC_MAX_POSTS="500"
-$env:FB_SYNC_SLEEP_SECONDS="1.5"
-$env:FB_CHECK_MAX_POSTS="200"
-$env:FB_CHECK_SLEEP_SECONDS="0.5"
+docker compose exec -T db pg_dump -U facebook -Fc facebook_reporting > facebook_reporting.dump
+Get-Content facebook_reporting.dump -AsByteStream | docker compose exec -T db pg_restore -U facebook -d facebook_reporting --clean --if-exists
 ```
 
-Khuyen nghi giu mac dinh de giam rui ro rate limit.
-
-Khong commit token len GitHub. Nen de token trong bien moi truong hoac file `.env` local, va `.env` da duoc ignore.
-
-## Cach su dung command line
-
-### 1. Crawl va luu snapshot
+Nên dừng `worker` trong lúc khôi phục và khởi động lại sau khi hoàn tất:
 
 ```powershell
-python fbcrawl.py sync --since 2026-06-01 --until 2026-06-17
+docker compose stop worker
+docker compose start worker
 ```
 
-Lenh nay tao/cap nhat SQLite DB mac dinh tai:
+## Phát triển và kiểm thử
 
-```text
-facebook_archive/facebook_audit.db
-```
-
-Du lieu chinh:
-
-- `posts`: trang thai hien tai cua tung bai da thay.
-- `post_snapshots`: moi lan crawl luu mot snapshot.
-- `deletion_events`: cac lan phat hien bai nghi da bi xoa.
-
-Moi lan `sync` mac dinh chi lay toi da 500 bai. Neu dat gioi han nay, app se dung va bao dang dung o bai/ngay nao. Hay chia nho khoang ngay hon hoac chay tiep vao ngay khac.
-
-Khi `sync` chay het tron mot khoang ngay, app se so sanh cac `post_id` trong lan sync moi voi cac bai da tung luu trong cung khoang ngay. Neu bai cu khong con xuat hien trong snapshot moi, app danh dau `suspected_deleted` voi source `sync_snapshot`. Cach nay it request hon viec goi tung `post_id`.
-
-### 2. Kiem tra bai bi xoa
+Backend cần Python 3.12+:
 
 ```powershell
-python fbcrawl.py check-deleted --since 2026-06-01 --until 2026-06-08
+cd backend
+python -m pip install -e ".[test]"
+python -m pytest -q
 ```
 
-Lenh nay doc cac bai trong DB theo khoang ngay rieng cua `check-deleted`, goi Graph API theo tung `post_id`, va danh dau `suspected_deleted` neu bai khong con truy cap duoc. De giam rui ro rate limit, app chi check toi da 200 bai moi lan va nghi giua cac request. Khoang ngay nhap cho `check-deleted` khong duoc vuot qua 7 ngay.
-
-Luu y: ket qua la "nghi da xoa" vi Graph API co the khong tra bai do vi quyen/token/loi tam thoi. Nen uu tien `sync` dinh ky de co snapshot, chi dung `check-deleted` khi can xac minh them.
-
-### 3. Xuat bao cao CSV
+Frontend cần Node.js 22+:
 
 ```powershell
-python fbcrawl.py report --out facebook_archive/audit_report.csv
+cd frontend
+npm ci
+npm run lint
+npm test -- --run
+npm run build
 ```
 
-CSV gom `post_id`, `status`, thoi diem thay dau/cuoi, thoi diem check, thoi diem nghi xoa, noi dung bai, permalink, anh, va thong tin YouTube neu co. Cac cot thoi gian duoc xuat theo gio local cua may tinh, dang `DD/MM/YYYY HH:MM:SS`.
-
-### 4. Dung DB tuy chinh
-
-Moi command co the dung `--db`:
-
-```powershell
-python fbcrawl.py --db data/my_page_audit.db sync --since 2026-06-01 --until 2026-06-17
-python fbcrawl.py --db data/my_page_audit.db check-deleted
-python fbcrawl.py --db data/my_page_audit.db report --out data/audit_report.csv
-```
-
-## Cach su dung giao dien Tkinter
-
-Mo app:
-
-```powershell
-python fbcrawl.py gui
-```
-
-Hoac chi can:
-
-```powershell
-python fbcrawl.py
-```
-
-Trong giao dien:
-
-1. Nhap duong dan SQLite DB.
-2. Nhap ngay bat dau va ngay ket thuc theo dinh dang `YYYY-MM-DD`.
-3. Nhap duong dan file report CSV.
-4. O muc `Dong bo va kiem tra bang snapshot`, nhap ngay rieng cho Sync, roi bam `Dong bo`.
-5. O muc `Kiem tra deleted rieng`, nhap ngay rieng cho Check Deleted, roi bam `Kiem tra deleted rieng` neu can xac minh them bang tung `post_id`. Khoang ngay nay toi da 7 ngay va moi lan chi goi toi da 200 request.
-6. O muc `Xuat bao cao`, chon file CSV va bam `Xuat bao cao`.
-
-Khi tac vu dang chay, app se khoa cac nut va hien thanh tien trinh de tranh nham la chuong trinh bi treo. Neu thieu token, sai ngay, loi mang, loi Graph API, hoac loi ghi file, app se hien hop thoai thong bao loi.
-
-## Kiem thu
-
-Chay unit test:
+Kiểm thử crawler cũ:
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
 
-Kiem tra syntax:
+## Crawler audit cũ
+
+Các lệnh cũ tiếp tục sử dụng `FB_PAGE_ACCESS_TOKEN`, `FB_PAGE_ID` và SQLite:
 
 ```powershell
-python -m py_compile fbcrawl.py tests/test_fbcrawl.py
+python fbcrawl.py sync --since 2026-06-01 --until 2026-06-17
+python fbcrawl.py check-deleted --since 2026-06-01 --until 2026-06-08
+python fbcrawl.py report --out facebook_archive/audit_report.csv
+python fbcrawl.py gui
 ```
 
-## Ghi chu van hanh
-
-- Nen chay `sync` theo lich, vi he thong chi phat hien xoa cho cac bai da tung duoc luu.
-- Voi Page dang rat nhieu bai, nen sync theo ngay/tuan thay vi chon khoang qua dai.
-- Khong nen bam `check-deleted` lien tuc. Lenh nay goi tung `post_id`, mac du da gioi han 200 bai moi lan.
-- De audit nhan vien dang/xoa bai chinh xac hon, nen yeu cau nhan vien dang qua cong cu noi bo hoac luu mapping `employee_id -> post_id`.
-- Thu muc `facebook_archive/`, SQLite DB, CSV report, cache va token local da duoc ignore trong Git.
+`check-deleted` chỉ nên dùng khi cần xác minh thêm vì gọi từng `post_id`; kết quả vẫn là “nghi đã xóa” nếu token/quyền truy cập thay đổi.

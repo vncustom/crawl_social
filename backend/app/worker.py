@@ -1,6 +1,6 @@
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -21,6 +21,15 @@ def enqueue_daily_jobs(db: Session, now: datetime) -> list[SyncJob]:
     )
     for page in pages:
         today = now.astimezone(ZoneInfo(page.timezone)).date()
+        existing = db.scalar(
+            select(SyncJob.id).where(
+                SyncJob.page_id == page.id,
+                SyncJob.job_type == JobType.daily,
+                SyncJob.end_date == today,
+            )
+        )
+        if existing:
+            continue
         try:
             jobs.append(
                 enqueue_job(
@@ -35,6 +44,17 @@ def enqueue_daily_jobs(db: Session, now: datetime) -> list[SyncJob]:
         except ActiveJobConflict:
             continue
     return jobs
+
+
+def daily_schedule_date(
+    now: datetime,
+    timezone_name: str,
+    last_scheduled: date | None,
+) -> date | None:
+    local = now.astimezone(ZoneInfo(timezone_name))
+    if local.time() < time(2) or last_scheduled == local.date():
+        return None
+    return local.date()
 
 
 def run_once(worker_id: str) -> bool:
@@ -53,7 +73,19 @@ def run_once(worker_id: str) -> bool:
 
 def run_worker(poll_seconds: float = 2.0) -> None:
     worker_id = f"worker-{uuid.uuid4()}"
+    settings = get_settings()
+    last_scheduled: date | None = None
     while True:
+        now = datetime.now(UTC)
+        scheduled_date = daily_schedule_date(
+            now,
+            settings.report_timezone,
+            last_scheduled,
+        )
+        if scheduled_date:
+            with SessionLocal() as db:
+                enqueue_daily_jobs(db, now)
+            last_scheduled = scheduled_date
         if not run_once(worker_id):
             time.sleep(poll_seconds)
 

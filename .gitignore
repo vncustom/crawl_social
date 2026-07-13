@@ -25,6 +25,7 @@ facebook_archive/
 *.sqlite
 *.sqlite3
 *.csv
+facebook-report_*.xlsx
 
 # Local secrets/config
 .env

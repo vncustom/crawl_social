@@ -12,8 +12,11 @@ from app.models import Base, Page, PageDailyInsight, Video
 def db_session():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
+    try:
+        with Session(engine) as session:
+            yield session
+    finally:
+        engine.dispose()
 
 
 def test_default_page_values(db_session):

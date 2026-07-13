@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from contextlib import contextmanager
 
 from app.dependencies import get_graph_client
 from test_auth import build_client
@@ -14,19 +15,19 @@ class FakeGraphClient:
         }
 
 
+@contextmanager
 def authenticated_client():
-    client = build_client()
-    client.app.dependency_overrides[get_graph_client] = lambda: FakeGraphClient()
-    login = client.post(
-        "/api/auth/login",
-        json={"username": "admin", "password": "correct horse battery staple"},
-    )
-    return client, login.json()["csrf_token"]
+    with build_client() as client:
+        client.app.dependency_overrides[get_graph_client] = lambda: FakeGraphClient()
+        login = client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "correct horse battery staple"},
+        )
+        yield client, login.json()["csrf_token"]
 
 
 def test_create_page_validates_and_enqueues_90_day_backfill():
-    client, csrf = authenticated_client()
-    with client:
+    with authenticated_client() as (client, csrf):
         response = client.post(
             "/api/pages",
             headers={"X-CSRF-Token": csrf},
@@ -41,8 +42,7 @@ def test_create_page_validates_and_enqueues_90_day_backfill():
 
 
 def test_disable_page_is_soft_delete():
-    client, csrf = authenticated_client()
-    with client:
+    with authenticated_client() as (client, csrf):
         created = client.post(
             "/api/pages",
             headers={"X-CSRF-Token": csrf},

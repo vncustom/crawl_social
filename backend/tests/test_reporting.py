@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from app.models import Base, Page, PageDailyInsight, Post
 from app.reporting.service import ReportingService
 
 
+@contextmanager
 def build_report():
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -24,24 +26,28 @@ def build_report():
         ]
     )
     db.commit()
-    return db, page
+    try:
+        yield db, page
+    finally:
+        db.close()
+        engine.dispose()
 
 
 def test_report_calculates_engagement_and_top_post():
-    db, page = build_report()
-    report = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
+    with build_report() as (db, page):
+        report = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
 
-    assert report.summary.posts == 2
-    assert report.summary.total_engagement == 20
-    assert report.summary.average_engagement == 10
-    assert report.top_posts[0].external_post_id == "p1"
-    assert report.summary.current_followers == 110
-    assert report.summary.follower_growth == 10
+        assert report.summary.posts == 2
+        assert report.summary.total_engagement == 20
+        assert report.summary.average_engagement == 10
+        assert report.top_posts[0].external_post_id == "p1"
+        assert report.summary.current_followers == 110
+        assert report.summary.follower_growth == 10
 
 
 def test_missing_insight_remains_none():
-    db, page = build_report()
-    report = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
+    with build_report() as (db, page):
+        report = ReportingService(db).build(page.id, date(2026, 7, 1), date(2026, 7, 2))
 
-    july_first = next(row for row in report.daily_insights if row.metric_date == date(2026, 7, 1))
-    assert july_first.page_views is None
+        july_first = next(row for row in report.daily_insights if row.metric_date == date(2026, 7, 1))
+        assert july_first.page_views is None
