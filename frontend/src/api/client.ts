@@ -1,4 +1,4 @@
-import type { Admin, FacebookPage } from "./types";
+import type { Admin, FacebookPage, Report } from "./types";
 
 let csrfToken = "";
 export function setCsrfToken(value: string) { csrfToken = value; }
@@ -26,4 +26,5 @@ export const api = {
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   pages: () => request<FacebookPage[]>("/api/pages"),
   createPage: (pageId: string) => request<FacebookPage>("/api/pages", { method: "POST", body: JSON.stringify({ page_id: pageId }) }),
+  report: (pageId:number, from:string, to:string) => request<Report>(`/api/reports/${pageId}?from=${from}&to=${to}`),
 };

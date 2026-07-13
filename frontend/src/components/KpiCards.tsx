@@ -1,0 +1,3 @@
+import type { Report } from "../api/types";
+const fmt=(value:number|null)=>value===null?"—":new Intl.NumberFormat("vi-VN",{maximumFractionDigits:1}).format(value);
+export function KpiCards({summary}:{summary:Report["summary"]}){const cards=[["Bài đăng",summary.posts],["Tổng tương tác",summary.total_engagement],["Người theo dõi",summary.current_followers],["Lượt cảm xúc",summary.reactions],["TB / bài",summary.average_engagement]] as const;return <div className="kpi-grid">{cards.map(([label,value])=><article className="kpi" key={label}><strong>{fmt(value)}</strong><span>{label}</span></article>)}</div>}
