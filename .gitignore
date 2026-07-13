@@ -43,6 +43,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .superpowers/
+playwright-report/
+test-results/
 
 # OS files
 .DS_Store

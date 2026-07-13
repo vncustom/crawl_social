@@ -5,6 +5,16 @@ import { vi } from "vitest";
 import { AppRouter } from "../src/router";
 
 
+it("redirects an unauthenticated visitor to login", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 401 })));
+
+  render(<AppRouter initialEntries={["/dashboard"]} />);
+
+  expect(await screen.findByRole("heading", { name: "Đăng nhập quản trị" })).toBeVisible();
+  expect(screen.queryByText("Facebook Reports")).not.toBeInTheDocument();
+});
+
+
 it("logs in and opens the dashboard", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);

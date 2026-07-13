@@ -80,7 +80,7 @@ def run_seed_default_page(settings: Settings | None = None) -> None:
             page, created = seed_default_page(db, graph, current)
     finally:
         graph.close()
-    action = "ÄÃ£ táº¡o" if created else "ÄÃ£ tá»“n táº¡i"
+    action = "Đã tạo" if created else "Đã tồn tại"
     print(f"{action} Page {page.external_page_id} ({page.display_name}).")
 
 
