@@ -37,6 +37,12 @@ facebook_archive/
 *.swp
 *.swo
 
+# Frontend build and local design artifacts
+node_modules/
+dist/
+*.tsbuildinfo
+.superpowers/
+
 # OS files
 .DS_Store
 Thumbs.db

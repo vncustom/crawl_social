@@ -1,0 +1,1 @@
+export function DashboardPage(){return <section><p className="eyebrow">FACEBOOK REPORTING</p><h1>Tổng quan Facebook</h1><p className="muted">Chọn Page và khoảng thời gian để xem báo cáo.</p></section>}
