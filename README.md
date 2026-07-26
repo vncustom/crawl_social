@@ -1,125 +1,101 @@
-# Facebook Reporting Dashboard
+# Facebook Page Crawlers
 
-Ứng dụng nội bộ thu thập dữ liệu nhiều Facebook Page, lưu lịch sử vào PostgreSQL, hiển thị dashboard theo khoảng ngày và xuất báo cáo Excel 7 sheet. Người dùng đăng nhập bằng một tài khoản quản trị; cấu trúc dữ liệu đã chừa trường `role` để bổ sung phân quyền sau.
+Dự án này lưu trữ hai phiên bản ứng dụng Python thu thập dữ liệu Facebook Page (bài viết và bình luận) qua Graph API:
 
-Ứng dụng cũ `fbcrawl.py` vẫn được giữ nguyên để audit bài viết bằng SQLite/CSV.
+1. **`fbcrawl_v2.py` (Mới / Đơn giản)**:
+   - Giao diện GUI (Tkinter) cho phép nhập trực tiếp `FB_PAGE_ID` và `FB_PAGE_ACCESS_TOKEN` (tự động fallback về biến môi trường / `.env` nếu để trống).
+   - Lấy **toàn bộ bình luận** (phân trang đầy đủ) cho từng bài viết.
+   - Bỏ qua tính năng kiểm tra bài viết bị xóa.
+   - Không dùng SQLite database, xuất trực tiếp báo cáo ra CSV/JSON.
 
-## Chức năng chính
+2. **`fbcrawl.py` (Cũ / Kiểm tra bài bị xóa)**:
+   - Lưu trữ bài viết và các bản snapshot vào SQLite database (`facebook_audit.db`).
+   - Có tính năng quét so sánh các bài viết cũ để phát hiện bài viết bị xóa khỏi trang.
+   - Xuất báo cáo từ database SQLite ra file CSV.
 
-- Nhập từng Page ID trong trang quản trị; Page mặc định là `1125132200689307`.
-- Token chỉ được đọc từ biến môi trường `FB_PAGE_ACCESS_TOKEN`, không lưu trong database hay trả về API.
-- Tạo backfill 90 ngày khi thêm Page, đồng bộ thủ công và theo dõi trạng thái job.
-- Lọc dashboard theo Page và hai ngày bao gồm cả ngày đầu/cuối; mặc định từ một tháng trước đến hôm nay theo `Asia/Bangkok`.
-- KPI, bài đăng theo ngày, top 5 bài và biểu đồ Insights theo ngày: follower mới, tổng follower, tương tác bài, lượt xem video và lượt xem Page.
-- Xuất Excel dùng đúng cùng dataset với dashboard, giữ ô trống khi Facebook không cung cấp metric.
+---
 
-## Khởi chạy bằng Docker
+## Yêu cầu hệ thống
 
-Yêu cầu Docker Desktop có Docker Compose. Tạo cấu hình local:
+- Python 3.10+
+- Thư viện `requests`
+- Thư viện `tkinter` (mặc định đã đi kèm với Python trên Windows)
 
-```powershell
-Copy-Item .env.example .env
+Cài đặt thư viện:
+```bash
+pip install requests
 ```
 
-Mở `.env` và thay tối thiểu ba giá trị:
+---
 
-- `FB_PAGE_ACCESS_TOKEN`: Page Access Token có quyền đọc Page/Insights cần thiết.
-- `APP_SECRET_KEY`: chuỗi ngẫu nhiên ít nhất 32 ký tự.
-- `POSTGRES_PASSWORD`: mật khẩu database mạnh.
+## 1. Phiên bản fbcrawl_v2.py (Khuyên dùng)
 
-Khởi động, migrate database và tạo dữ liệu ban đầu:
+### Chức năng chính
+- Nhập trực tiếp Page ID và Page Access Token ngay trên giao diện hoặc cấu hình qua biến môi trường.
+- Crawl danh sách bài đăng trong khoảng thời gian chỉ định.
+- Lấy toàn bộ comment của từng bài đăng.
+- Xuất kết quả trực tiếp ra thư mục `facebook_export/` dưới dạng CSV và JSON.
+  - Định dạng CSV dùng UTF-8 có BOM (`utf-8-sig`) giúp hiển thị đúng tiếng Việt trong Microsoft Excel.
 
-```powershell
-docker compose up -d --build
-docker compose exec api alembic upgrade head
-docker compose exec api python -m app.cli create-admin --username admin
-docker compose exec api python -m app.cli seed-default-page
-Invoke-RestMethod http://localhost:8000/api/health
+### Cách chạy nhanh
+```bash
+python fbcrawl_v2.py
 ```
 
-Lệnh `create-admin` yêu cầu nhập mật khẩu hai lần, tối thiểu 12 ký tự. Lệnh seed xác minh Page mặc định qua Facebook và tạo job backfill 90 ngày; có thể chạy lại an toàn mà không tạo Page trùng.
+### Các cột trong báo cáo CSV (`fbcrawl_v2.py`):
+- `FB_PAGE_ID`: ID của trang Facebook.
+- `post_id`: ID bài đăng.
+- `created_time`: Thời gian đăng bài (múi giờ máy local).
+- `permalink_url`: Đường dẫn tới bài viết.
+- `message`: Nội dung bài viết.
+- `full_picture`: URL hình ảnh đi kèm.
+- `video_link`: Link video (YouTube hoặc Facebook video).
+- `comments`: Danh sách tất cả bình luận có cấu trúc: `[Thời gian] Người dùng: Nội dung`.
 
-Mở dashboard tại [http://localhost:3000](http://localhost:3000). API trực tiếp ở `http://localhost:8000`; frontend tự proxy `/api` tới API trong Docker.
+---
 
-> Worker có thể khởi động lại trong khoảng ngắn trước lần migration đầu tiên. Sau `alembic upgrade head`, chính sách restart sẽ tự đưa worker về trạng thái hoạt động.
+## 2. Phiên bản fbcrawl.py (Nguyên bản)
 
-## Biến môi trường
+Phiên bản này lưu trữ lịch sử qua database SQLite nội bộ và cho phép kiểm tra bài viết đã bị xóa khỏi Graph API.
 
-| Biến | Mặc định | Ý nghĩa |
-|---|---|---|
-| `FB_PAGE_ACCESS_TOKEN` | bắt buộc | Token chung dùng gọi Facebook Graph API |
-| `FB_GRAPH_VERSION` | `v25.0` | Phiên bản Graph API |
-| `DEFAULT_PAGE_ID` | `1125132200689307` | Page được tạo bởi lệnh seed |
-| `DATABASE_URL` | Compose tự đặt | SQLAlchemy URL tới PostgreSQL |
-| `APP_SECRET_KEY` | bắt buộc | Khóa bí mật của ứng dụng |
-| `REPORT_TIMEZONE` | `Asia/Bangkok` | Múi giờ tính ngày báo cáo |
-| `COOKIE_SECURE` | `false` | Đặt `true` khi chạy production qua HTTPS |
-| `POSTGRES_DB/USER/PASSWORD` | xem `.env.example` | Cấu hình PostgreSQL trong Compose |
-
-Không commit `.env` hoặc token. Khi xoay token, thay `FB_PAGE_ACCESS_TOKEN` trong `.env` rồi chạy:
-
-```powershell
-docker compose up -d --force-recreate api worker
-```
-
-## Vận hành
-
-- Mỗi Page chỉ có một job ở trạng thái active (`queued`, `running`, `retrying`, `cancelling`). Yêu cầu trùng trả về job hiện có thay vì chạy song song.
-- Job định kỳ lấy dữ liệu hôm qua đến hôm nay lúc 02:00 theo múi giờ Page. Page đã tắt hoặc tắt đồng bộ hằng ngày sẽ được bỏ qua.
-- Dashboard đánh dấu dữ liệu `fresh`, `stale`, `partial` hoặc `unavailable`. `partial/unavailable` thường nghĩa là token thiếu quyền hoặc Facebook đã đổi/ngừng metric; hệ thống không tự thay bằng metric khác và không biến dữ liệu thiếu thành 0.
-- Khi metric lỗi, xem trạng thái job và `metric_availability`, kiểm tra quyền token và phiên bản Graph API, sau đó tạo backfill cho khoảng ngày cần lấy lại.
-- Sau khi triển khai HTTPS, đặt `COOKIE_SECURE=true`.
-- Phiên bản đầu có một quản trị viên và chưa phân quyền. Khi mở rộng nhiều người dùng, áp dụng `AdminUser.role` cho quyền xem Page, chạy job và quản trị tài khoản.
-
-### Sao lưu và khôi phục PostgreSQL
-
-```powershell
-docker compose exec -T db pg_dump -U facebook -Fc facebook_reporting > facebook_reporting.dump
-Get-Content facebook_reporting.dump -AsByteStream | docker compose exec -T db pg_restore -U facebook -d facebook_reporting --clean --if-exists
-```
-
-Nên dừng `worker` trong lúc khôi phục và khởi động lại sau khi hoàn tất:
-
-```powershell
-docker compose stop worker
-docker compose start worker
-```
-
-## Phát triển và kiểm thử
-
-Backend cần Python 3.12+:
-
-```powershell
-cd backend
-python -m pip install -e ".[test]"
-python -m pytest -q
-```
-
-Frontend cần Node.js 22+:
-
-```powershell
-cd frontend
-npm ci
-npm run lint
-npm test -- --run
-npm run build
-```
-
-Kiểm thử crawler cũ:
-
-```powershell
-python -m unittest discover -s tests -v
-```
-
-## Crawler audit cũ
-
-Các lệnh cũ tiếp tục sử dụng `FB_PAGE_ACCESS_TOKEN`, `FB_PAGE_ID` và SQLite:
-
-```powershell
-python fbcrawl.py sync --since 2026-06-01 --until 2026-06-17
-python fbcrawl.py check-deleted --since 2026-06-01 --until 2026-06-08
-python fbcrawl.py report --out facebook_archive/audit_report.csv
+### Cách chạy qua GUI
+```bash
 python fbcrawl.py gui
 ```
 
-`check-deleted` chỉ nên dùng khi cần xác minh thêm vì gọi từng `post_id`; kết quả vẫn là “nghi đã xóa” nếu token/quyền truy cập thay đổi.
+### Các câu lệnh CLI phổ biến
+- **Đồng bộ bài viết**:
+  ```bash
+  python fbcrawl.py sync --since 2026-06-01 --until 2026-06-17
+  ```
+- **Kiểm tra bài đăng bị xóa**:
+  ```bash
+  python fbcrawl.py check-deleted --since 2026-06-01 --until 2026-06-08
+  ```
+- **Xuất báo cáo từ SQLite**:
+  ```bash
+  python fbcrawl.py report --out facebook_archive/audit_report.csv
+  ```
+
+---
+
+## Cấu hình Biến Môi Trường (Tùy chọn)
+
+Bạn có thể tạo một file `.env` ở thư mục gốc của dự án để điền các giá trị mặc định:
+
+```env
+FB_PAGE_ID=1125132200689307
+FB_PAGE_ACCESS_TOKEN=nhập_token_của_bạn_vào_đây
+FB_GRAPH_VERSION=v25.0
+FB_SYNC_MAX_POSTS=500
+FB_SYNC_SLEEP_SECONDS=1.5
+```
+
+---
+
+## Kiểm thử ứng dụng
+Để chạy bộ kiểm thử tự động của bản crawler cũ:
+```bash
+python -m unittest discover -s tests -v
+```
+
