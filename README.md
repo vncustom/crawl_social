@@ -1,30 +1,42 @@
-# Facebook Page Crawlers
+# Facebook Page Crawlers & Web Dashboard
 
-Dự án này lưu trữ hai phiên bản ứng dụng Python thu thập dữ liệu Facebook Page (bài viết và bình luận) qua Graph API:
+Dự án này bao gồm ứng dụng Web Dashboard trực quan cùng với các công cụ Python thu thập dữ liệu Facebook Page qua Graph API:
 
-1. **`fbcrawl_v2.py` (Mới / Đơn giản)**:
-   - Giao diện GUI (Tkinter) cho phép nhập trực tiếp `FB_PAGE_ID` và `FB_PAGE_ACCESS_TOKEN` (tự động fallback về biến môi trường / `.env` nếu để trống).
-   - Lấy **toàn bộ bình luận** (phân trang đầy đủ) cho từng bài viết.
-   - Bỏ qua tính năng kiểm tra bài viết bị xóa.
-   - Không dùng SQLite database, xuất trực tiếp báo cáo ra CSV/JSON.
+1. **`app_web.py` (Phiên bản Web Dashboard)**:
+   - Giao diện Web SPA hiện đại, trực quan, phục vụ tại `http://localhost:8000`.
+   - Xem bài đăng dạng thẻ Feed trực quan kèm hình ảnh thumbnail, link video.
+   - **Nút 1-Click Copy**: Sao chép nội dung bài viết, danh sách comment hoặc link bài đăng chỉ với 1 cú nhấp chuột.
+   - Bộ lọc tìm kiếm nhanh bài viết/comment, lọc bài có video/ảnh.
+   - Xuất dữ liệu linh hoạt ra CSV và JSON.
 
-2. **`fbcrawl.py` (Cũ / Kiểm tra bài bị xóa)**:
-   - Lưu trữ bài viết và các bản snapshot vào SQLite database (`facebook_audit.db`).
-   - Có tính năng quét so sánh các bài viết cũ để phát hiện bài viết bị xóa khỏi trang.
-   - Xuất báo cáo từ database SQLite ra file CSV.
+2. **`fbcrawl_v2.py` (Mới / Tkinter GUI)**:
+   - Giao diện Tkinter GUI đơn giản.
+   - Lấy toàn bộ bình luận cho từng bài viết và xuất ra CSV/JSON.
+
+3. **`fbcrawl.py` (Cũ / Kiểm tra bài bị xóa)**:
+   - Lưu trữ lịch sử bài viết vào SQLite database (`facebook_audit.db`).
+   - Kiểm tra phát hiện bài viết bị xóa khỏi trang.
 
 ---
 
 ## Yêu cầu hệ thống
 
 - Python 3.10+
-- Thư viện `requests`
-- Thư viện `tkinter` (mặc định đã đi kèm với Python trên Windows)
+- Thư viện: `requests`, `fastapi`, `uvicorn`
 
 Cài đặt thư viện:
 ```bash
-pip install requests
+pip install -r requirements.txt
 ```
+
+---
+
+## 1. 🚀 Khởi chạy Web Dashboard (`app_web.py`)
+
+```bash
+python app_web.py
+```
+Mở trình duyệt truy cập: [http://localhost:8000](http://localhost:8000)
 
 ---
 
