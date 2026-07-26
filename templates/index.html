@@ -56,6 +56,8 @@
       margin-bottom: 24px;
       padding-bottom: 16px;
       border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 16px;
     }
 
     .brand {
@@ -89,7 +91,23 @@
       color: var(--text-muted);
     }
 
-    /* Form Panel */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .admin-badge {
+      background: rgba(129, 140, 248, 0.2);
+      border: 1px solid var(--accent-indigo);
+      color: var(--accent-indigo);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    /* Panel */
     .panel {
       background: var(--card-bg);
       backdrop-filter: blur(16px);
@@ -100,6 +118,11 @@
       box-shadow: var(--shadow);
     }
 
+    .admin-panel {
+      border-color: rgba(129, 140, 248, 0.4);
+      background: rgba(30, 41, 59, 0.85);
+    }
+
     .panel-title {
       font-size: 1.1rem;
       font-weight: 600;
@@ -107,7 +130,7 @@
       color: var(--accent-blue);
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
     }
 
     .form-grid {
@@ -129,13 +152,7 @@
       color: var(--text-muted);
     }
 
-    .input-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-
-    .form-group input {
+    .form-group input, .form-group select {
       width: 100%;
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--card-border);
@@ -148,32 +165,14 @@
       transition: all 0.2s;
     }
 
-    .form-group input:focus {
+    .form-group select option {
+      background: #0f172a;
+      color: white;
+    }
+
+    .form-group input:focus, .form-group select:focus {
       border-color: var(--accent-blue);
       box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
-    }
-
-    .toggle-token-btn {
-      position: absolute;
-      right: 10px;
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 0.8rem;
-      padding: 4px 8px;
-      border-radius: 4px;
-    }
-
-    .toggle-token-btn:hover {
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .action-bar {
-      display: flex;
-      gap: 12px;
-      align-items: center;
     }
 
     .btn {
@@ -181,10 +180,10 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 11px 22px;
+      padding: 10px 20px;
       border-radius: var(--radius-sm);
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       cursor: pointer;
       border: none;
       transition: all 0.2s;
@@ -211,6 +210,18 @@
       background: rgba(71, 85, 105, 0.9);
     }
 
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--accent-rose);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.4);
+    }
+
     .btn-copy-sm {
       padding: 6px 12px;
       font-size: 0.775rem;
@@ -229,6 +240,63 @@
       background: rgba(56, 189, 248, 0.2);
       border-color: var(--accent-blue);
       color: white;
+    }
+
+    /* Admin Table */
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+    }
+
+    .admin-table th, .admin-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .admin-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    /* Modal Dialog */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: #1e293b;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-card h2 {
+      font-size: 1.25rem;
+      margin-bottom: 18px;
+      color: var(--accent-indigo);
     }
 
     /* Progress Bar */
@@ -293,7 +361,6 @@
     .stat-blue { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); }
     .stat-purple { background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); }
     .stat-emerald { background: rgba(52, 211, 153, 0.15); color: var(--accent-emerald); }
-    .stat-amber { background: rgba(251, 191, 36, 0.15); color: var(--accent-amber); }
 
     .stat-data h3 {
       font-size: 1.5rem;
@@ -420,10 +487,6 @@
       gap: 4px;
     }
 
-    .post-link-btn:hover {
-      text-decoration: underline;
-    }
-
     .post-body {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -471,10 +534,6 @@
       margin-top: 8px;
     }
 
-    .video-badge:hover {
-      background: rgba(239, 68, 68, 0.35);
-    }
-
     /* 1-Click Copy Bar */
     .copy-toolbar {
       display: flex;
@@ -504,10 +563,6 @@
       cursor: pointer;
       user-select: none;
       background: rgba(255, 255, 255, 0.02);
-    }
-
-    .comments-header:hover {
-      background: rgba(255, 255, 255, 0.05);
     }
 
     .comments-list {
@@ -548,8 +603,7 @@
     /* Toast Notification */
     .toast {
       position: fixed;
-      bottom: 24px;
-      right: 24px;
+      bottom: 24px; right: 24px;
       background: #10b981;
       color: white;
       padding: 12px 20px;
@@ -560,7 +614,7 @@
       transform: translateY(100px);
       opacity: 0;
       transition: all 0.3s ease;
-      z-index: 1000;
+      z-index: 3000;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -571,27 +625,10 @@
       opacity: 1;
     }
 
-    /* Empty state */
     .empty-state {
       text-align: center;
       padding: 60px 20px;
       color: var(--text-muted);
-    }
-
-    .empty-state icon {
-      font-size: 48px;
-      display: block;
-      margin-bottom: 12px;
-    }
-
-    @media (max-width: 768px) {
-      .post-body {
-        grid-template-columns: 1fr;
-      }
-      .post-media {
-        width: 100%;
-        height: 200px;
-      }
     }
   </style>
 </head>
@@ -607,30 +644,77 @@
           <p>Trực quan hóa nội dung & Sao chép nhanh báo cáo bài viết/comment</p>
         </div>
       </div>
-      <div>
+      
+      <div class="header-actions">
         <button id="exportCsvBtn" class="btn btn-secondary" style="display:none;" onclick="exportCSV()">📥 Xuất CSV</button>
-        <button id="exportJsonBtn" class="btn btn-secondary" style="display:none; margin-left: 8px;" onclick="exportJSON()">📦 Tải JSON</button>
+        <button id="exportJsonBtn" class="btn btn-secondary" style="display:none;" onclick="exportJSON()">📦 Tải JSON</button>
+
+        <div id="adminUserBanner" style="display:none;">
+          <span class="admin-badge">👤 Admin</span>
+          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="logoutAdmin()">🚪 Đăng xuất</button>
+        </div>
+
+        <button id="adminLoginBtn" class="btn btn-secondary" onclick="openLoginModal()">🔑 Đăng nhập Admin</button>
       </div>
     </header>
 
-    <!-- Configuration Panel -->
-    <div class="panel">
+    <!-- Admin Panel (Chỉ hiển thị khi đã đăng nhập Admin) -->
+    <div id="adminPanel" class="panel admin-panel" style="display: none;">
       <div class="panel-title">
-        <span>⚙️</span> Cấu hình Thu Thập Dữ Liệu
+        <span>⚙️ Khu Vực Quản Trị Admin (Lưu tự động vào .env)</span>
+        <span style="font-size: 0.8rem; color: var(--accent-indigo);">User: admin</span>
       </div>
-      <form id="crawlForm">
+
+      <form id="adminAddPageForm" onsubmit="adminAddPage(event)">
         <div class="form-grid">
           <div class="form-group">
-            <label for="pageId">FB_PAGE_ID</label>
-            <input type="text" id="pageId" placeholder="VD: 1125132200689307" required />
+            <label for="adminPageName">Tên / Nhãn Page</label>
+            <input type="text" id="adminPageName" placeholder="VD: Fanpage Tin Tức HOT" required />
           </div>
 
           <div class="form-group">
-            <label for="accessToken">FB_PAGE_ACCESS_TOKEN</label>
-            <div class="input-wrapper">
-              <input type="password" id="accessToken" placeholder="Nhập Page Access Token" required />
-              <button type="button" class="toggle-token-btn" onclick="toggleTokenVisibility()">Hiện</button>
-            </div>
+            <label for="adminPageId">FB_PAGE_ID</label>
+            <input type="text" id="adminPageId" placeholder="VD: 1125132200689307" required />
+          </div>
+
+          <div class="form-group">
+            <label for="adminAccessToken">FB_PAGE_ACCESS_TOKEN Tương Ứng</label>
+            <input type="password" id="adminAccessToken" placeholder="Nhập Page Access Token" required />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">➕ Thêm / Cập Nhật Page VÀO .env</button>
+      </form>
+
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Tên / Nhãn Page</th>
+            <th>FB_PAGE_ID</th>
+            <th>Access Token</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="adminPageTableBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- User Configuration Panel -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>📋 Lựa Chọn Trang & Thời Gian Crawl</span>
+        <span style="font-size: 0.775rem; color: var(--text-muted);">🔒 Access Token được hệ thống bảo mật khớp tự động</span>
+      </div>
+
+      <form id="crawlForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="pageIdSelect">Chọn Facebook Page</label>
+            <select id="pageIdSelect" required>
+              <option value="">-- Đang tải danh sách Page --</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -659,7 +743,7 @@
       <!-- Progress bar -->
       <div id="progressContainer" class="progress-container">
         <div class="progress-info">
-          <span id="progressStatus">Đang gửi yêu cầu...</span>
+          <span id="progressStatus">Đang xử lý dữ liệu...</span>
           <span id="progressCount">0%</span>
         </div>
         <div class="progress-bar-bg">
@@ -723,8 +807,29 @@
       <div class="empty-state">
         <div style="font-size: 48px; margin-bottom: 12px;">📊</div>
         <h3>Chưa Có Dữ Liệu</h3>
-        <p>Vui lòng nhập cấu hình và bấm "Bắt Đầu Crawl" để tải bài viết và bình luận.</p>
+        <p>Vui lòng chọn Facebook Page từ danh sách và bấm "Bắt Đầu Crawl" để xem báo cáo.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- Admin Login Modal Overlay -->
+  <div id="loginModal" class="modal-overlay">
+    <div class="modal-card">
+      <h2>🔑 Đăng Nhập Quản Trị Admin</h2>
+      <form onsubmit="handleLoginSubmit(event)">
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="loginUser">Tên đăng nhập</label>
+          <input type="text" id="loginUser" value="admin" required />
+        </div>
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label for="loginPass">Mật khẩu</label>
+          <input type="password" id="loginPass" value="admin" required />
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" onclick="closeLoginModal()">Hủy</button>
+          <button type="submit" class="btn btn-primary">Đăng Nhập</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -736,42 +841,193 @@
   <script>
     let globalData = null;
     let currentFilter = 'all';
+    let adminToken = localStorage.getItem('adminToken') || '';
 
-    // Khởi tạo trang
     document.addEventListener('DOMContentLoaded', async () => {
+      await loadDefaultConfig();
+      await loadPublicPages();
+      checkAdminStatus();
+    });
+
+    async function loadDefaultConfig() {
       try {
         const res = await fetch('/api/config');
         const config = await res.json();
-        if (config.page_id) document.getElementById('pageId').value = config.page_id;
         if (config.default_since) document.getElementById('sinceDate').value = config.default_since;
         if (config.default_until) document.getElementById('untilDate').value = config.default_until;
         if (config.max_posts) document.getElementById('maxPosts').value = config.max_posts;
       } catch (e) {
-        console.error("Không thể lấy cấu hình mặc định", e);
-      }
-    });
-
-    function toggleTokenVisibility() {
-      const input = document.getElementById('accessToken');
-      const btn = event.target;
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.textContent = 'Ẩn';
-      } else {
-        input.type = 'password';
-        btn.textContent = 'Hiện';
+        console.error("Lỗi tải config", e);
       }
     }
 
-    // Submit form crawl qua REST API kết hợp streaming tiến trình
+    async function loadPublicPages() {
+      try {
+        const res = await fetch('/api/pages');
+        const pages = await res.json();
+        const select = document.getElementById('pageIdSelect');
+        if (pages.length === 0) {
+          select.innerHTML = '<option value="">-- Chưa có Page nào được cấu hình --</option>';
+        } else {
+          select.innerHTML = pages.map(p => 
+            `<option value="${p.page_id}">${escapeHtml(p.name)} (ID: ${p.page_id})</option>`
+          ).join('');
+        }
+      } catch (e) {
+        console.error("Lỗi tải danh sách Page", e);
+      }
+    }
+
+    // Modal Admin Login
+    function openLoginModal() {
+      document.getElementById('loginModal').classList.add('open');
+    }
+
+    function closeLoginModal() {
+      document.getElementById('loginModal').classList.remove('open');
+    }
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value.trim();
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: user, password: pass })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Đăng nhập thất bại');
+        }
+        const data = await res.json();
+        adminToken = data.token;
+        localStorage.setItem('adminToken', adminToken);
+        closeLoginModal();
+        checkAdminStatus();
+        showToast("🔑 Đăng nhập Admin thành công!");
+      } catch (err) {
+        alert("Lỗi: " + err.message);
+      }
+    }
+
+    function logoutAdmin() {
+      adminToken = '';
+      localStorage.removeItem('adminToken');
+      checkAdminStatus();
+      showToast("🚪 Đã đăng xuất khỏi Admin.");
+    }
+
+    function checkAdminStatus() {
+      const adminBtn = document.getElementById('adminLoginBtn');
+      const adminBanner = document.getElementById('adminUserBanner');
+      const adminPanel = document.getElementById('adminPanel');
+
+      if (adminToken === 'admin_session_token_888') {
+        adminBtn.style.display = 'none';
+        adminBanner.style.display = 'flex';
+        adminPanel.style.display = 'block';
+        loadAdminPageTable();
+      } else {
+        adminBtn.style.display = 'inline-flex';
+        adminBanner.style.display = 'none';
+        adminPanel.style.display = 'none';
+      }
+    }
+
+    async function loadAdminPageTable() {
+      try {
+        const res = await fetch('/api/admin/pages', {
+          headers: { 'X-Admin-Token': adminToken }
+        });
+        if (!res.ok) return;
+        const pages = await res.json();
+        const tbody = document.getElementById('adminPageTableBody');
+
+        if (pages.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">Chưa có Page nào. Hãy thêm mới bên trên!</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = pages.map(p => `
+          <tr>
+            <td><strong>${escapeHtml(p.name || '')}</strong></td>
+            <td><code>${p.page_id}</code></td>
+            <td style="color: var(--text-muted); font-family: monospace;">${p.access_token ? (p.access_token.substring(0, 8) + '...' + p.access_token.substring(p.access_token.length - 4)) : '(Trống)'}</td>
+            <td>
+              <button class="btn btn-danger" onclick="deleteAdminPage('${p.page_id}')">🗑️ Xóa</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        console.error("Lỗi bảng Admin", e);
+      }
+    }
+
+    async function adminAddPage(e) {
+      e.preventDefault();
+      const name = document.getElementById('adminPageName').value.trim();
+      const pid = document.getElementById('adminPageId').value.trim();
+      const tok = document.getElementById('adminAccessToken').value.trim();
+
+      try {
+        const res = await fetch('/api/admin/pages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Token': adminToken
+          },
+          body: JSON.stringify({ name: name, page_id: pid, access_token: tok })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Lỗi lưu Page');
+        }
+        showToast("✅ Đã thêm Page và lưu tự động vào file .env!");
+        document.getElementById('adminPageName').value = '';
+        document.getElementById('adminPageId').value = '';
+        document.getElementById('adminAccessToken').value = '';
+        await loadAdminPageTable();
+        await loadPublicPages();
+      } catch (err) {
+        alert("Lỗi: " + err.message);
+      }
+    }
+
+    async function deleteAdminPage(pid) {
+      if (!confirm(`Bạn có chắc muốn xóa Page ID ${pid} khỏi file .env không?`)) return;
+      try {
+        const res = await fetch(`/api/admin/pages/${pid}`, {
+          method: 'DELETE',
+          headers: { 'X-Admin-Token': adminToken }
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Lỗi xóa Page');
+        }
+        showToast("🗑️ Đã xóa Page khỏi .env!");
+        await loadAdminPageTable();
+        await loadPublicPages();
+      } catch (err) {
+        alert("Lỗi: " + err.message);
+      }
+    }
+
+    // Submit form Crawl (Người dùng chọn Page từ Dropdown)
     document.getElementById('crawlForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const page_id = document.getElementById('pageId').value.trim();
-      const access_token = document.getElementById('accessToken').value.trim();
+      const page_id = document.getElementById('pageIdSelect').value.trim();
       const since_date = document.getElementById('sinceDate').value;
       const until_date = document.getElementById('untilDate').value;
       const max_posts = parseInt(document.getElementById('maxPosts').value, 10);
+
+      if (!page_id) {
+        alert("Vui lòng chọn Facebook Page từ danh sách.");
+        return;
+      }
 
       const submitBtn = document.getElementById('submitBtn');
       const progressContainer = document.getElementById('progressContainer');
@@ -782,14 +1038,14 @@
       submitBtn.disabled = true;
       progressContainer.style.display = 'block';
       progressBarFill.style.width = '10%';
-      progressStatus.textContent = 'Đang gọi Facebook API...';
+      progressStatus.textContent = 'Đang kết nối Facebook Graph API...';
       progressCount.textContent = '10%';
 
       try {
         const response = await fetch('/api/crawl', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ page_id, access_token, since_date, until_date, max_posts })
+          body: JSON.stringify({ page_id, since_date, until_date, max_posts })
         });
 
         if (!response.ok) {
@@ -816,7 +1072,6 @@
       }
     });
 
-    // Render Dashboard
     function renderDashboard(data) {
       document.getElementById('statsGrid').style.display = 'grid';
       document.getElementById('controlsBar').style.display = 'flex';
@@ -831,18 +1086,15 @@
       filterPosts();
     }
 
-    // Filter & Search Logic
     function filterPosts() {
       if (!globalData || !globalData.posts) return;
 
       const query = document.getElementById('searchInput').value.toLowerCase();
       const filtered = globalData.posts.filter(post => {
-        // Filter pills
         if (currentFilter === 'video' && !post.video_link) return false;
         if (currentFilter === 'image' && !post.full_picture) return false;
         if (currentFilter === 'comments' && post.comment_count === 0) return false;
 
-        // Search query
         if (query) {
           const matchMsg = (post.message || '').toLowerCase().includes(query);
           const matchComm = (post.comments_text || '').toLowerCase().includes(query);
@@ -861,7 +1113,6 @@
       filterPosts();
     }
 
-    // Render Posts Feed Cards
     function renderFeed(posts) {
       const feedGrid = document.getElementById('feedGrid');
       if (!posts || posts.length === 0) {
@@ -929,7 +1180,6 @@
               <button class="btn-copy-sm" onclick="copyFullReport('${post.post_id}')">📝 Copy Báo Cáo Tổng Hợp</button>
             </div>
 
-            <!-- Expandable Comments Drawer -->
             <div class="comments-section">
               <div class="comments-header" onclick="toggleComments('comm_${post.post_id}')">
                 <span>💬 Danh sách bình luận (${commentsCount})</span>
@@ -956,7 +1206,6 @@
       }
     }
 
-    // 1-Click Copy Helper Functions
     function getPostById(postId) {
       return globalData ? globalData.posts.find(p => p.post_id === postId) : null;
     }
@@ -1016,12 +1265,11 @@
         .replace(/'/g, "&#039;");
     }
 
-    // Export Functions
     function exportCSV() {
       if (!globalData || !globalData.posts) return;
       const fieldnames = ["FB_PAGE_ID", "post_id", "created_time", "permalink_url", "message", "full_picture", "video_link", "comments"];
       
-      let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
+      let csvContent = "\uFEFF";
       csvContent += fieldnames.join(",") + "\n";
 
       globalData.posts.forEach(post => {

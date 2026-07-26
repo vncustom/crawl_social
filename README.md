@@ -38,6 +38,11 @@ python app_web.py
 ```
 Mở trình duyệt truy cập: [http://localhost:8000](http://localhost:8000)
 
+### 🔑 Quản trị Admin & Dropdown Chọn Page
+- **Tài khoản Admin mặc định**: User: `admin` / Password: `admin`
+- **TÍnh năng Admin**: Bấm **🔑 Đăng nhập Admin** ở góc phải giao diện để mở bảng quản trị. Admin có quyền thêm/sửa/xóa các bộ `FB_PAGE_ID` và `FB_PAGE_ACCESS_TOKEN` tương ứng. Danh sách này được **tự động lưu vào file `.env`**.
+- **Người dùng thông thường**: Không cần nhập Access Token. Chỉ cần mở menu **Dropdown Chọn Facebook Page** do Admin cấu hình sẵn để crawl dữ liệu bảo mật.
+
 ---
 
 ## 1. Phiên bản fbcrawl_v2.py (Khuyên dùng)
