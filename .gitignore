@@ -21,10 +21,12 @@ htmlcov/
 
 # Local app data and generated reports
 facebook_archive/
+facebook_export/
 *.db
 *.sqlite
 *.sqlite3
 *.csv
+*.json
 facebook-report_*.xlsx
 
 # Local secrets/config
